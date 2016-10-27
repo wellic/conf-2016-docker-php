@@ -1,0 +1,9 @@
+### ignore
+
+/__tmp/
+
+### keep
+
+!.gitignore
+!.gitkeep
+

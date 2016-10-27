@@ -1,0 +1,146 @@
+version: "2"
+
+services:
+
+###################################################
+    data_app:
+        env_file: .env
+        build:
+            context: .
+            dockerfile: ./services/data_app/Dockerfile
+            args:
+                - DOCKER_GROUP_ID
+                - DOCKER_USER_ID
+        image:          "${PREFIX_IMAGE}data_app"
+        container_name: "${PREFIX_CONTAINER}data_app"
+        hostname:       "${PREFIX_CONTAINER}data_app"
+        volumes:
+            - ./src/www:/var/www
+        working_dir: /var/www
+        user: web-user
+#        restart: always
+
+###################################################
+    php:
+        env_file: .env
+        build:
+            context: .
+            dockerfile: services/php/Dockerfile
+            args:
+                - DOCKER_GROUP_ID
+                - DOCKER_USER_ID
+        image:          "${PREFIX_IMAGE}php"
+        container_name: "${PREFIX_CONTAINER}php"
+        hostname:       "${PREFIX_CONTAINER}php"
+        expose:
+            - "9000"
+            - "9001"
+        depends_on:
+            - data_app
+            - mysql
+        links:
+            - mysql
+        volumes_from:
+            - data_app
+        volumes:
+            - ./data/.composer:/home/web-user/.composer
+            - ./services/php/configs/custom.ini:/usr/local/etc/php/conf.d/zz_custom.ini
+            - ./services/php/configs/custom_xdebug.ini:/usr/local/etc/php/conf.d/zz_custom_xdebug.ini
+            - ./services/php/scripts/wait_mysql.sh:/wait_mysql.sh
+            - ./services/php/scripts/entrypoint.sh:/entrypoint.sh
+        user: web-user
+        working_dir: /var/www
+        environment:
+            - TERM=xterm
+#        restart: always
+
+###################################################
+    data_mysql:
+        env_file: .env
+        image:          "mysql:${MYSQL_VERSION}"
+        container_name: "${PREFIX_CONTAINER}data_mysql"
+        hostname:       "${PREFIX_CONTAINER}data_mysql"
+        volumes:
+            - ./data/mysql:/var/lib/mysql
+            - ./services/mysql/configs/conf.d:/etc/mysql/conf.d
+        entrypoint: "/bin/bash"
+#        restart: always
+
+###################################################
+    mysql:
+        env_file: .env
+        image:          "mysql:${MYSQL_VERSION}"
+        container_name: "${PREFIX_CONTAINER}mysql"
+        hostname:       "${PREFIX_CONTAINER}mysql"
+        ports:
+            - "${MYSQL_PORT}:3306"
+        volumes_from:
+            - data_mysql
+        environment:
+            - TERM=xterm
+#        restart: always
+
+###################################################
+    web_app:
+        env_file: .env
+        build:
+            context: .
+            dockerfile: services/nginx/Dockerfile
+            args:
+                - DOCKER_GROUP_ID
+                - DOCKER_USER_ID
+        image:          "${PREFIX_IMAGE}web_app"
+        container_name: "${PREFIX_CONTAINER}web_app"
+        hostname:       "${PREFIX_CONTAINER}web_app"
+        ports:
+            - ${WEB_APP_PORT}:80
+        depends_on:
+            - data_app
+            - data_mysql
+            - php
+            - mysql
+        links:
+            - php
+            - mysql
+        volumes_from:
+            - data_app
+        volumes:
+            - ./data/logs/nginx:/var/log/nginx
+            - ./services/nginx/configs/nginx.conf:/etc/nginx/nginx.conf
+            - ./services/nginx/configs/sites-enabled:/etc/nginx/sites-enabled
+        working_dir: /var/www
+        environment:
+            - TERM=xterm
+#        restart: always
+
+###################################################
+#   Snippet for setup custom network and hosts
+###################################################
+#
+# version: "2"
+# services:
+# ...
+#     service_name:
+#         ...
+##         network_mode: bridge
+#         networks:
+#             my_custom_network:
+#                 ipv4_address: ${NET_ADDR}.ip_num_of_current_service
+#         extra_hosts:
+#            - "host1:${NET_ADDR}.ip_num_of_necessary_service"
+#            - ...
+# ...
+#
+#  networks:
+#      my_custom_network:
+#          driver: bridge
+#          driver_opts:
+#              com.docker.network.enable_ipv6: "false"
+#          ipam:
+#              driver: default
+#              config:
+#                  - subnet:  ${NET_ADDR}.0/24
+#                    gateway: ${NET_ADDR}.${NET_GW}
+#
+###################################################
+
