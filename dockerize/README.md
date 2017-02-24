@@ -18,7 +18,7 @@
 - Start/restart after changes:
     - restart web_app containers
         docker-compose up
-    - safe restart apache (if necessary)
+    - safe restart Nginx (if necessary)
         docker exec -it dev_web_app nginx -s reload
     - safe restart php-fpm (if necessary)
         docker exec -it dev_php sudo pkill -o -SIGUSR2 php-fpm
